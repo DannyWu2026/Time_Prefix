@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>时间前缀</title>
+    <style>
+        /* 样式完全保留 —— 与原始版本一致 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            min-height: 100vh;
+            background: #eef2f8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px 15px 30px;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 25px 40px -12px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.02);
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 28px 24px 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #0f172a, #2c3e66);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 6px;
+        }
+        .weekday {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #4a5c6c;
+            margin-left: 8px;
+        }
+        .picker-wrapper {
+            margin-bottom: 20px;
+        }
+        .picker-box {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+        }
+        .picker-column {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            height: 160px;
+            overflow: hidden;
+            border-radius: 14px;
+            background: #f8fafc;
+        }
+        .picker-column::before,
+        .picker-column::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 60px;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .picker-column::before {
+            top: 0;
+            background: linear-gradient(to bottom, #f8fafc 0%, rgba(248,250,252,0) 100%);
+        }
+        .picker-column::after {
+            bottom: 0;
+            background: linear-gradient(to top, #f8fafc 0%, rgba(248,250,252,0) 100%);
+        }
+        .picker-list {
+            position: relative;
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding: 60px 0;
+        }
+        .picker-list::-webkit-scrollbar {
+            display: none;
+        }
+        .picker-item {
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            font-size: 18px;
+            color: #7c8b9c;
+            scroll-snap-align: center;
+            font-weight: 400;
+            transition: all 0.15s;
+        }
+        .picker-item.selected {
+            color: #007AFF;
+            font-weight: 650;
+            font-size: 20px;
+        }
+        .picker-highlight {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            height: 40px;
+            border-top: 1.5px solid #dce5ec;
+            border-bottom: 1.5px solid #dce5ec;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .input-section {
+            margin-bottom: 22px;
+        }
+        .date-input {
+            width: 100%;
+            padding: 16px 12px;
+            font-size: 1.4rem;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #0a2540;
+            background-color: #fbfdff;
+            border: 2px solid #dde7f0;
+            border-radius: 18px;
+            text-align: center;
+            transition: all 0.2s;
+            outline: none;
+        }
+        .date-input:focus {
+            border-color: #3b82f6;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+        }
+        .button-group {
+            display: flex;
+            gap: 14px;
+            align-items: stretch;
+        }
+        .left-stack {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .right-single {
+            flex: 0.9;
+            display: flex;
+        }
+        .btn {
+            border: none;
+            border-radius: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            border: 1.5px solid #cbdde9;
+            color: #1e3a6f;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.03);
+            width: 100%;
+            user-select: none;
+        }
+        .btn:active {
+            transform: scale(0.96);
+            background: #f0f6fe;
+        }
+        .btn-left {
+            padding: 15px 6px;
+            font-size: 1.1rem;
+        }
+        .btn-tall {
+            flex-direction: column;
+            padding: 0 12px;
+            font-size: 1.4rem;
+            background: #007aff;
+            border: none;
+            color: white;
+            box-shadow: 0 8px 14px -6px rgba(0,122,255,0.3);
+        }
+        .btn-tall:active {
+            background: #005fc7;
+        }
+        .toast-message {
+            visibility: hidden;
+            min-width: 160px;
+            background-color: #0f172ae6;
+            backdrop-filter: blur(10px);
+            color: #fff;
+            text-align: center;
+            border-radius: 40px;
+            padding: 12px 24px;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.95rem;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .toast-message.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        @media (max-width: 480px) {
+            .card { padding: 20px 16px; }
+            .header h1 { font-size: 1.8rem; }
+            .date-input { padding: 14px 8px; font-size: 1.2rem; }
+            .btn-left { padding: 14px 4px; font-size: 1rem; }
+            .btn-tall { font-size: 1.3rem; }
+            .picker-item { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <h1>
+            今夕是何年
+            <span class="weekday" id="weekdayDisplay">(周一)</span>
+        </h1>
+    </div>
+
+    <!-- 滚轮选择器 -->
+    <div class="picker-wrapper">
+        <div class="picker-box">
+            <div class="picker-column">
+                <div class="picker-highlight"></div>
+                <div class="picker-list" id="yearList"></div>
+            </div>
+            <div class="picker-column">
+                <div class="picker-highlight"></div>
+                <div class="picker-list" id="monthList"></div>
+            </div>
+            <div class="picker-column">
+                <div class="picker-highlight"></div>
+                <div class="picker-list" id="dayList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="input-section">
+        <input type="text" id="dateInput" class="date-input" placeholder="20260412_" value="">
+    </div>
+
+    <div class="button-group">
+        <div class="left-stack">
+            <button id="yearMonthDayBtn" class="btn btn-left">📅 年月日</button>
+            <button id="hourMinSecBtn" class="btn btn-left">⏱️ 时分秒</button>
+        </div>
+        <div class="right-single">
+            <button id="copyBtn" class="btn btn-tall">📋 复制</button>
+        </div>
+    </div>
+</div>
+
+<div id="toastMsg" class="toast-message">✨ 就绪</div>
+
+<script>
+    (function(){
+        "use strict";
+
+        // ----- DOM 元素 -----
+        const yearList = document.getElementById('yearList');
+        const monthList = document.getElementById('monthList');
+        const dayList = document.getElementById('dayList');
+        const dateInput = document.getElementById('dateInput');
+        const yearMonthDayBtn = document.getElementById('yearMonthDayBtn');
+        const hourMinSecBtn = document.getElementById('hourMinSecBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const toastEl = document.getElementById('toastMsg');
+        const weekdayDisplay = document.getElementById('weekdayDisplay');
+
+        // ----- 常量 -----
+        const START_YEAR = 1890;
+        const END_YEAR = 2090;
+        const YEAR_COUNT = END_YEAR - START_YEAR + 1;
+        const ITEM_HEIGHT = 40;        // 与CSS .picker-item高度一致
+        const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+        // ----- 状态 -----
+        let currentYear, currentMonth, currentDay;
+        // 防止联动死循环的标志
+        let isUpdatingFromPicker = false;
+        let isUpdatingFromInput = false;
+        let isCycling = false;
+        let toastTimer = null;
+
+        // ----- 工具函数 (保留核心行为) -----
+        function getDaysInMonth(year, month) {
+            return new Date(year, month, 0).getDate();
+        }
+
+        function getWeekday(year, month, day) {
+            const date = new Date(year, month - 1, day);
+            return WEEKDAYS[date.getDay()];
+        }
+
+        function updateWeekdayDisplay() {
+            weekdayDisplay.textContent = `(${getWeekday(currentYear, currentMonth, currentDay)})`;
+        }
+
+        function showToast(msg) {
+            if (toastTimer) clearTimeout(toastTimer);
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+        }
+
+        // ----- 滚轮数据生成 (优化：提取公共逻辑) -----
+        function generatePickerItems(options) {
+            const { start, end, cycles = 3, selectedValue } = options;
+            let html = '';
+            for (let c = 0; c < cycles; c++) {
+                for (let v = start; v <= end; v++) {
+                    const selectedClass = v === selectedValue ? 'selected' : '';
+                    html += `<div class="picker-item ${selectedClass}" data-value="${v}">${v}</div>`;
+                }
+            }
+            return html;
+        }
+
+        function initYearList() {
+            yearList.innerHTML = generatePickerItems({
+                start: START_YEAR,
+                end: END_YEAR,
+                selectedValue: currentYear
+            });
+        }
+
+        function initMonthList() {
+            monthList.innerHTML = generatePickerItems({
+                start: 1,
+                end: 12,
+                selectedValue: currentMonth
+            });
+        }
+
+        function refreshDayList() {
+            const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+            // 确保当前日不越界
+            if (currentDay > daysInMonth) currentDay = daysInMonth;
+            
+            dayList.innerHTML = generatePickerItems({
+                start: 1,
+                end: daysInMonth,
+                selectedValue: currentDay
+            });
+            
+            // 重新绑定日的滚动事件 (因为总数量变了)
+            bindScrollEvent(dayList, daysInMonth, (value) => {
+                if (currentDay !== value) {
+                    currentDay = value;
+                    updateSelectedStyle(dayList, currentDay);
+                    updateWeekdayDisplay();
+                    if (!isUpdatingFromInput) updateInputFromPicker();
+                }
+            });
+            
+            scrollToSelected(dayList, currentDay, daysInMonth);
+            updateSelectedStyle(dayList, currentDay);
+        }
+
+        // 更新高亮样式
+        function updateSelectedStyle(listElement, value) {
+            const items = listElement.querySelectorAll('.picker-item');
+            items.forEach(item => {
+                const itemValue = parseInt(item.dataset.value);
+                item.classList.toggle('selected', itemValue === value);
+            });
+        }
+
+        // 滚动到指定值 (优选中间组)
+        function scrollToSelected(listElement, value, uniqueCount) {
+            const items = listElement.querySelectorAll('.picker-item');
+            let targetIndex = -1;
+            for (let i = 0; i < items.length; i++) {
+                if (parseInt(items[i].dataset.value) === value) {
+                    // 优先取中间那一组 (索引在 uniqueCount ~ 2*uniqueCount-1 之间)
+                    if (targetIndex === -1 || (i >= uniqueCount && i < uniqueCount * 2)) {
+                        targetIndex = i;
+                    }
+                }
+            }
+            if (targetIndex !== -1) {
+                listElement.scrollTop = targetIndex * ITEM_HEIGHT;
+            }
+        }
+
+        // 循环滚动处理
+        function handleCycleScroll(listElement, totalUniqueCount, onValueChange) {
+            const scrollTop = listElement.scrollTop;
+            const cycleSize = totalUniqueCount * ITEM_HEIGHT;
+            
+            // 边界跳转 (保持滚轮无限感)
+            if (scrollTop < cycleSize * 0.5) {
+                isCycling = true;
+                listElement.scrollTop = scrollTop + cycleSize;
+                isCycling = false;
+            } else if (scrollTop > cycleSize * 1.5) {
+                isCycling = true;
+                listElement.scrollTop = scrollTop - cycleSize;
+                isCycling = false;
+            }
+            
+            if (isCycling) return;
+            
+            const items = listElement.querySelectorAll('.picker-item');
+            if (!items.length) return;
+            
+            let centerIndex = Math.round(scrollTop / ITEM_HEIGHT);
+            centerIndex = Math.max(0, Math.min(centerIndex, items.length - 1));
+            
+            const centerItem = items[centerIndex];
+            if (centerItem) {
+                const value = parseInt(centerItem.dataset.value);
+                onValueChange(value);
+            }
+        }
+
+        // 绑定滚动事件 (移除旧监听，使用新handler)
+        function bindScrollEvent(listElement, totalUniqueCount, callback) {
+            if (listElement._scrollHandler) {
+                listElement.removeEventListener('scroll', listElement._scrollHandler);
+            }
+            const scrollHandler = () => {
+                if (isUpdatingFromInput) return;
+                handleCycleScroll(listElement, totalUniqueCount, callback);
+            };
+            listElement._scrollHandler = scrollHandler;
+            listElement.addEventListener('scroll', scrollHandler, { passive: true });
+        }
+
+        // ----- 输入框与滚轮联动 -----
+        function updateInputFromPicker() {
+            if (isUpdatingFromInput) return;
+            isUpdatingFromPicker = true;
+            
+            const currentValue = dateInput.value;
+            // 提取后缀 (保留 _ 之后的内容)
+            const suffixMatch = currentValue.match(/^(\d{8}_)?(.*)$/);
+            const suffix = suffixMatch ? suffixMatch[2] : '';
+            
+            const yearStr = currentYear;
+            const monthStr = String(currentMonth).padStart(2, '0');
+            const dayStr = String(currentDay).padStart(2, '0');
+            const newPrefix = `${yearStr}${monthStr}${dayStr}_`;
+            
+            let newValue = newPrefix + suffix;
+            // 如果原来没有任何下划线，默认只保留前缀
+            if (!currentValue.includes('_')) {
+                newValue = newPrefix;
+            }
+            
+            dateInput.value = newValue;
+            // 简单动画反馈
+            dateInput.style.transform = 'scale(1.01)';
+            setTimeout(() => dateInput.style.transform = '', 100);
+            
+            isUpdatingFromPicker = false;
+        }
+
+        function updatePickerFromInput() {
+            if (isUpdatingFromPicker) return;
+            
+            const inputValue = dateInput.value.trim();
+            const dateMatch = inputValue.match(/^(\d{4})(\d{2})(\d{2})/);
+            if (!dateMatch) return;
+            
+            const year = parseInt(dateMatch[1]);
+            const month = parseInt(dateMatch[2]);
+            const day = parseInt(dateMatch[3]);
+            
+            if (year >= START_YEAR && year <= END_YEAR && month >= 1 && month <= 12) {
+                const daysInMonth = getDaysInMonth(year, month);
+                if (day >= 1 && day <= daysInMonth) {
+                    setPickerDate(year, month, day);
+                }
+            }
+        }
+
+        // 核心：同步滚轮日期 (会触发样式更新、日列表刷新)
+        function setPickerDate(year, month, day) {
+            isUpdatingFromInput = true;
+            
+            const yearChanged = currentYear !== year;
+            const monthChanged = currentMonth !== month;
+            
+            currentYear = year;
+            currentMonth = month;
+            currentDay = day;
+            
+            updateSelectedStyle(yearList, currentYear);
+            updateSelectedStyle(monthList, currentMonth);
+            
+            if (yearChanged || monthChanged) {
+                refreshDayList();
+            } else {
+                updateSelectedStyle(dayList, currentDay);
+            }
+            
+            scrollToSelected(yearList, currentYear, YEAR_COUNT);
+            scrollToSelected(monthList, currentMonth, 12);
+            const daysInMonthNow = getDaysInMonth(currentYear, currentMonth);
+            scrollToSelected(dayList, currentDay, daysInMonthNow);
+            
+            updateWeekdayDisplay();
+            
+            isUpdatingFromInput = false;
+        }
+
+        // ----- 获取真实时间前缀 (保留原始格式) -----
+        function getRealTodayPrefix() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            return `${y}${m}${d}_`;
+        }
+
+        function getRealDateTimePrefix() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            return `${y}${m}${d}_${hh}${mm}${ss}_`;
+        }
+
+        // 刷新输入框（用于按钮）
+        function setInputValueAndAnimate(value) {
+            isUpdatingFromPicker = true;
+            dateInput.value = value;
+            dateInput.style.transform = 'scale(1.01)';
+            setTimeout(() => dateInput.style.transform = '', 100);
+            isUpdatingFromPicker = false;
+        }
+
+        // ----- 初始化 -----
+        function init() {
+            const today = new Date();
+            currentYear = today.getFullYear();
+            currentMonth = today.getMonth() + 1;
+            currentDay = today.getDate();
+            
+            initYearList();
+            initMonthList();
+            refreshDayList(); // 会初始化日列表及绑定
+            
+            // 滚动到正确位置 (需要等待渲染)
+            setTimeout(() => {
+                scrollToSelected(yearList, currentYear, YEAR_COUNT);
+                scrollToSelected(monthList, currentMonth, 12);
+                const daysNow = getDaysInMonth(currentYear, currentMonth);
+                scrollToSelected(dayList, currentDay, daysNow);
+                updateWeekdayDisplay();
+            }, 20);
+            
+            // 年份滚动
+            bindScrollEvent(yearList, YEAR_COUNT, (value) => {
+                if (currentYear !== value) {
+                    currentYear = value;
+                    updateSelectedStyle(yearList, currentYear);
+                    refreshDayList();       // 日列表刷新 & 重绑事件
+                    updateWeekdayDisplay();
+                    if (!isUpdatingFromInput) updateInputFromPicker();
+                }
+            });
+            
+            // 月份滚动
+            bindScrollEvent(monthList, 12, (value) => {
+                if (currentMonth !== value) {
+                    currentMonth = value;
+                    updateSelectedStyle(monthList, currentMonth);
+                    refreshDayList();
+                    updateWeekdayDisplay();
+                    if (!isUpdatingFromInput) updateInputFromPicker();
+                }
+            });
+            
+            // 日滚动已经在 refreshDayList 中绑定
+            
+            // 初始输入框值
+            dateInput.value = getRealTodayPrefix();
+            
+            dateInput.addEventListener('input', () => {
+                if (!isUpdatingFromPicker) updatePickerFromInput();
+            });
+            dateInput.addEventListener('blur', () => {
+                updatePickerFromInput();
+            });
+            
+            updateWeekdayDisplay();
+        }
+
+        // ----- 按钮交互 (逻辑完全不变) -----
+        yearMonthDayBtn.onclick = () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            
+            setPickerDate(year, month, day);
+            const prefix = getRealTodayPrefix();
+            setInputValueAndAnimate(prefix);
+            <!-- showToast(`📅 ${prefix}`); -->
+        };
+        
+        hourMinSecBtn.onclick = () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            
+            setPickerDate(year, month, day);
+            const fullPrefix = getRealDateTimePrefix();
+            setInputValueAndAnimate(fullPrefix);
+            <!-- showToast(`⏱️ ${fullPrefix}`); -->
+        };
+        
+        copyBtn.onclick = async () => {
+            const text = dateInput.value.trim();
+            if (!text) {
+                showToast('⚠️ 输入框为空');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast(`📋 已复制: ${text}`);
+            } catch (e) {
+                // 降级方案
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast(`📋 已复制`);
+            }
+        };
+
+        // 启动一切
+        init();
+    })();
+</script>
+</body>
+</html>
